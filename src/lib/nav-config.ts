@@ -58,7 +58,6 @@ export const NAV_CONFIG: NavItem[] = [
     children: [
       { label: 'Products', path: '/inventory/products' },
       { label: 'Stock Report', path: '/inventory/stock-report' },
-      { label: 'Stock History', path: '/inventory/stock-history' },
       { label: 'Locations', path: '/inventory/locations' },
       { label: 'Stock Movements', path: '/inventory/movements' },
       { label: 'Stock Transfer', path: '/inventory/transfer' },

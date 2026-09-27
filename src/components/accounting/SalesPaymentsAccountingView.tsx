@@ -602,11 +602,11 @@ export const SalesPaymentsAccountingView: React.FC = () => {
 
       {/* Main Table */}
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] relative">
           <table className="w-full text-left text-xs border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-20 bg-[var(--surface-sunken)] shadow-xs">
               <tr className="bg-[var(--surface-sunken)] text-[var(--text-muted)] border-b border-[var(--border)] uppercase font-semibold text-[10px] tracking-wider">
-                <th className="py-3 px-4">Order / Invoice</th>
+                <th className="sticky left-0 z-30 bg-[var(--surface-sunken)] py-3 px-4 border-r border-[var(--border)] shadow-xs">Order / Invoice</th>
                 <th className="py-3 px-4">Customer</th>
                 <th className="py-3 px-4">Date</th>
                 <th className="py-3 px-4 text-right">Total (৳)</th>
@@ -636,10 +636,10 @@ export const SalesPaymentsAccountingView: React.FC = () => {
                     <React.Fragment key={order.id}>
                       <tr
                         onClick={() => setSelectedOrder(order)}
-                        className="hover:bg-[var(--surface-hover)] cursor-pointer transition-colors group"
+                        className="odd:bg-[var(--card)] even:bg-[var(--surface-sunken)]/50 hover:bg-[var(--surface-hover)] cursor-pointer transition-colors group"
                       >
-                        {/* Order / Invoice */}
-                        <td className="py-3 px-4 font-mono">
+                        {/* Order / Invoice (Frozen Leftmost Column) */}
+                        <td className="sticky left-0 z-10 py-3 px-4 font-mono bg-[var(--card)] group-odd:bg-[var(--card)] group-even:bg-[var(--surface-sunken)] group-hover:bg-[var(--surface-hover)] border-r border-[var(--border)] shadow-xs">
                           <div className="font-bold text-[var(--text)]">{order.invoice_number}</div>
                           <div className="text-[10px] text-[var(--text-muted)]">{order.id}</div>
                         </td>

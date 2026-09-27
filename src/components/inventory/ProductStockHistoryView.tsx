@@ -23,14 +23,28 @@ import {
   User,
   Truck,
   ExternalLink,
+  X,
 } from 'lucide-react';
 
-export const ProductStockHistoryView: React.FC = () => {
+export interface ProductStockHistoryViewProps {
+  productId?: string;
+  warehouseId?: string;
+  onBack?: () => void;
+  isDrawer?: boolean;
+}
+
+export const ProductStockHistoryView: React.FC<ProductStockHistoryViewProps> = ({
+  productId: propProductId,
+  warehouseId: propWarehouseId,
+  onBack,
+  isDrawer = false,
+}) => {
   const { products, activePath, setActivePath } = useApp();
   const { sessionToken, currentUser } = useAuth();
 
   // Helper to determine initial product
   const initialProductId = useMemo(() => {
+    if (propProductId) return propProductId;
     if (activePath.includes('product_id=')) {
       const match = activePath.match(/product_id=([^&]+)/);
       if (match && match[1]) return decodeURIComponent(match[1]);
@@ -40,10 +54,11 @@ export const ProductStockHistoryView: React.FC = () => {
       return fromStorage;
     }
     return products[0]?.id || '';
-  }, [activePath, products]);
+  }, [propProductId, activePath, products]);
 
   // Helper to determine initial warehouse
   const initialWarehouseId = useMemo(() => {
+    if (propWarehouseId) return propWarehouseId;
     if (activePath.includes('warehouse_id=')) {
       const match = activePath.match(/warehouse_id=([^&]+)/);
       if (match && match[1]) return decodeURIComponent(match[1]);
@@ -51,7 +66,7 @@ export const ProductStockHistoryView: React.FC = () => {
     const fromStorage = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('stock_history_warehouse_id') : null;
     if (fromStorage) return fromStorage;
     return 'all';
-  }, [activePath]);
+  }, [propWarehouseId, activePath]);
 
   const [selectedProductId, setSelectedProductId] = useState<string>(initialProductId);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(initialWarehouseId);
@@ -212,7 +227,7 @@ export const ProductStockHistoryView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 max-w-7xl mx-auto pb-12">
+    <div className={`space-y-4 ${isDrawer ? 'p-1' : 'max-w-7xl mx-auto pb-12'}`}>
       {/* Page Header */}
       <PageHeader
         eyebrow="Inventory & Audit"
@@ -221,11 +236,17 @@ export const ProductStockHistoryView: React.FC = () => {
         actions={
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setActivePath('/inventory/stock-report')}
+              onClick={() => {
+                if (onBack) {
+                  onBack();
+                } else {
+                  setActivePath('/inventory/stock-report');
+                }
+              }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-xs font-semibold text-[var(--text)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer shadow-xs"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Back to Stock Report
+              {isDrawer ? <X className="w-3.5 h-3.5" /> : <ArrowLeft className="w-3.5 h-3.5" />}
+              {isDrawer ? 'Close Drawer' : 'Back to Stock Report'}
             </button>
             <button
               onClick={fetchHistory}
@@ -484,11 +505,11 @@ export const ProductStockHistoryView: React.FC = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] relative">
           <table className="w-full text-left border-collapse text-xs">
-            <thead>
+            <thead className="sticky top-0 z-20 bg-[var(--surface-sunken)] shadow-xs">
               <tr className="bg-[var(--surface-sunken)] border-b border-[var(--border)] text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                <th className="py-3 px-3.5 whitespace-nowrap">Date & Time</th>
+                <th className="sticky left-0 z-30 bg-[var(--surface-sunken)] py-3 px-3.5 whitespace-nowrap border-r border-[var(--border)] shadow-xs">Date & Time</th>
                 <th className="py-3 px-3.5 whitespace-nowrap">Movement Type</th>
                 <th className="py-3 px-3.5 text-right whitespace-nowrap">Quantity Change</th>
                 <th className="py-3 px-3.5 text-right whitespace-nowrap">New Balance</th>
@@ -522,10 +543,10 @@ export const ProductStockHistoryView: React.FC = () => {
                   return (
                     <tr
                       key={m.id}
-                      className="hover:bg-[var(--surface-hover)] transition-colors"
+                      className="odd:bg-[var(--card)] even:bg-[var(--surface-sunken)]/50 hover:bg-[var(--surface-hover)] transition-colors group"
                     >
-                      {/* Date & Time */}
-                      <td className="py-2.5 px-3.5 whitespace-nowrap font-mono text-[var(--text-secondary)]">
+                      {/* Date & Time (Frozen Leftmost Column) */}
+                      <td className="sticky left-0 z-10 py-2.5 px-3.5 whitespace-nowrap font-mono text-[var(--text-secondary)] bg-[var(--card)] group-odd:bg-[var(--card)] group-even:bg-[var(--surface-sunken)] group-hover:bg-[var(--surface-hover)] border-r border-[var(--border)] shadow-xs">
                         <div>{new Date(m.created_at).toLocaleDateString()}</div>
                         <div className="text-[10px] text-[var(--text-muted)]">
                           {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

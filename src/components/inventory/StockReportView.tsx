@@ -3,6 +3,7 @@ import { PageHeader } from '../common/PageHeader';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { StockReportItem, StockReportSummary, StockReportResponse } from '../../types';
+import { ProductStockHistoryView } from './ProductStockHistoryView';
 import {
   Search,
   RefreshCw,
@@ -18,6 +19,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  X,
+  Maximize2,
 } from 'lucide-react';
 
 export const StockReportView: React.FC = () => {
@@ -26,6 +29,11 @@ export const StockReportView: React.FC = () => {
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // In-place Product Stock History state (slide-over drawer or inline swap)
+  const [selectedHistoryProductId, setSelectedHistoryProductId] = useState<string | null>(null);
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  const [inlineHistoryMode, setInlineHistoryMode] = useState<boolean>(false);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -153,16 +161,19 @@ export const StockReportView: React.FC = () => {
     setCurrentPage(1);
   };
 
-  const handleViewHistory = (productId: string) => {
-    sessionStorage.setItem('stock_history_product_id', productId);
-    if (locationFilter !== 'all') {
-      sessionStorage.setItem('stock_history_warehouse_id', locationFilter);
-    } else {
-      sessionStorage.removeItem('stock_history_warehouse_id');
-    }
-    const locParam = locationFilter !== 'all' ? `&warehouse_id=${locationFilter}` : '';
-    setActivePath(`/inventory/stock-history?product_id=${productId}${locParam}`);
+  const handleOpenHistory = (productId: string) => {
+    setSelectedHistoryProductId(productId);
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedHistoryProductId) {
+        setSelectedHistoryProductId(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedHistoryProductId]);
 
   const handleExportCsv = () => {
     if (!reportData || !reportData.products.length) return;
@@ -219,6 +230,23 @@ export const StockReportView: React.FC = () => {
   const products = reportData?.products || [];
   const total = reportData?.total || 0;
   const totalPages = reportData?.total_pages || 1;
+
+  // In-place Inline Swap view if toggled
+  if (inlineHistoryMode && selectedHistoryProductId) {
+    return (
+      <div className="space-y-4 max-w-7xl mx-auto pb-12">
+        <ProductStockHistoryView
+          productId={selectedHistoryProductId}
+          warehouseId={locationFilter !== 'all' ? locationFilter : 'all'}
+          onBack={() => {
+            setSelectedHistoryProductId(null);
+            setInlineHistoryMode(false);
+          }}
+          isDrawer={false}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-12">
@@ -481,13 +509,23 @@ export const StockReportView: React.FC = () => {
 
       {/* Compact Table */}
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="p-2.5 px-3.5 bg-[var(--surface-sunken)]/60 border-b border-[var(--border)] flex items-center justify-between text-xs text-[var(--text-muted)]">
+          <div className="flex items-center gap-1.5 font-medium">
+            <History className="w-3.5 h-3.5 text-[var(--accent)]" />
+            <span>Tip: <strong className="text-[var(--text)]">Double-click any row</strong> to open its complete chronological stock movement history.</span>
+          </div>
+          <span className="font-mono text-[11px] text-[var(--text-muted)]">
+            Total {total} SKUs
+          </span>
+        </div>
+
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] relative">
           <table className="w-full text-left border-collapse text-xs">
-            <thead>
+            <thead className="sticky top-0 z-20 bg-[var(--surface-sunken)] shadow-xs">
               <tr className="bg-[var(--surface-sunken)] border-b border-[var(--border)] text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
                 <th
                   onClick={() => handleSort('sku')}
-                  className="py-3 px-3 cursor-pointer hover:text-[var(--text)] whitespace-nowrap"
+                  className="sticky left-0 z-30 bg-[var(--surface-sunken)] py-3 px-3 cursor-pointer hover:text-[var(--text)] whitespace-nowrap border-r border-[var(--border)] shadow-xs"
                 >
                   <div className="flex items-center gap-1">
                     SKU
@@ -567,13 +605,12 @@ export const StockReportView: React.FC = () => {
                 >
                   Adjusted
                 </th>
-                <th className="py-3 px-3 text-center whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
               {loading ? (
                 <tr>
-                  <td colSpan={14} className="py-12 text-center text-[var(--text-muted)]">
+                  <td colSpan={13} className="py-12 text-center text-[var(--text-muted)]">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <RefreshCw className="w-6 h-6 animate-spin text-[var(--accent)]" />
                       <span>Loading stock report...</span>
@@ -582,7 +619,7 @@ export const StockReportView: React.FC = () => {
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="py-12 text-center text-[var(--text-muted)]">
+                  <td colSpan={13} className="py-12 text-center text-[var(--text-muted)]">
                     No products matching your search and filter criteria.
                   </td>
                 </tr>
@@ -590,14 +627,28 @@ export const StockReportView: React.FC = () => {
                 products.map((item) => {
                   const isLowStock = item.current_stock <= 5;
                   const isOutOfStock = item.current_stock === 0;
+                  const isSelected = selectedRowId === item.id;
 
                   return (
                     <tr
                       key={item.id}
-                      className="hover:bg-[var(--surface-hover)] transition-colors group"
+                      onClick={() => setSelectedRowId(item.id)}
+                      onDoubleClick={() => handleOpenHistory(item.id)}
+                      title="Click to select • Double-click row to view stock history"
+                      className={`transition-colors group cursor-pointer ${
+                        isSelected
+                          ? 'bg-[var(--accent)]/10 ring-1 ring-inset ring-[var(--accent)]'
+                          : 'odd:bg-[var(--card)] even:bg-[var(--surface-sunken)]/50 hover:bg-[var(--surface-hover)]'
+                      }`}
                     >
-                      {/* SKU */}
-                      <td className="py-2.5 px-3 font-mono font-bold text-[var(--accent)] whitespace-nowrap">
+                      {/* SKU (Frozen Leftmost Column) */}
+                      <td
+                        className={`sticky left-0 z-10 py-2.5 px-3 font-mono font-bold text-[var(--accent)] whitespace-nowrap border-r border-[var(--border)] shadow-xs ${
+                          isSelected
+                            ? 'bg-[var(--surface-hover)] font-black'
+                            : 'bg-[var(--card)] group-odd:bg-[var(--card)] group-even:bg-[var(--surface-sunken)] group-hover:bg-[var(--surface-hover)]'
+                        }`}
+                      >
                         {item.sku}
                       </td>
 
@@ -703,19 +754,6 @@ export const StockReportView: React.FC = () => {
                       <td className="py-2.5 px-3 text-right font-mono text-[var(--text-secondary)] whitespace-nowrap">
                         {item.total_adjusted > 0 ? `${item.total_adjusted}` : '-'}
                       </td>
-
-                      {/* Action -> Link to Part 2 Product Stock History */}
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => handleViewHistory(item.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[var(--surface-sunken)] hover:bg-[var(--accent)] hover:text-white border border-[var(--border)] text-[var(--text)] transition-colors cursor-pointer shadow-xs"
-                          title="View complete product stock history and chronological running balance"
-                        >
-                          <History className="w-3 h-3" />
-                          History
-                        </button>
-                      </td>
                     </tr>
                   );
                 })
@@ -784,6 +822,54 @@ export const StockReportView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Right-side slide-over drawer for Product Stock History */}
+      {selectedHistoryProductId && !inlineHistoryMode && (
+        <div className="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/45 backdrop-blur-xs transition-opacity duration-300"
+            onClick={() => setSelectedHistoryProductId(null)}
+          />
+
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-6 sm:pl-12">
+            <div className="w-screen max-w-5xl bg-[var(--bg)] border-l border-[var(--border)] shadow-2xl overflow-y-auto p-4 sm:p-6 transition-transform duration-300 flex flex-col">
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-[var(--border)]">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded">
+                    Quick Stock History Drawer
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setInlineHistoryMode(true)}
+                    className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--accent)] underline font-medium cursor-pointer"
+                  >
+                    <Maximize2 className="w-3 h-3" />
+                    Switch to Inline Full View
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedHistoryProductId(null)}
+                  className="p-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
+                  title="Close Drawer (Esc)"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-1">
+                <ProductStockHistoryView
+                  productId={selectedHistoryProductId}
+                  warehouseId={locationFilter !== 'all' ? locationFilter : 'all'}
+                  onBack={() => setSelectedHistoryProductId(null)}
+                  isDrawer={true}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
