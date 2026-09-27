@@ -8604,6 +8604,8 @@ export class MirageDB {
     sort_order?: 'asc' | 'desc';
     date_from?: string;
     date_to?: string;
+    low_stock_only?: boolean | string;
+    low_stock_threshold?: number | string;
   }): StockReportResponse {
     const page = Math.max(1, Number(params.page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(params.page_size) || 25));
@@ -8615,6 +8617,8 @@ export class MirageDB {
     const dateTo = String(params.date_to || '').trim();
     const sortBy = String(params.sort_by || 'sku').trim();
     const sortOrder = params.sort_order === 'asc' ? 'asc' : (params.sort_order === 'desc' ? 'desc' : (sortBy === 'sku' || sortBy === 'name' ? 'asc' : 'desc'));
+    const isLowStockOnly = params.low_stock_only === true || params.low_stock_only === 'true';
+    const lowStockThreshold = Number.isFinite(Number(params.low_stock_threshold)) ? Number(params.low_stock_threshold) : 5;
 
     // 1. Pre-aggregate movements grouped by product_id within date range & location
     const movementAggMap = new Map<string, { sold: number; transferred: number; adjusted: number }>();
@@ -8664,7 +8668,7 @@ export class MirageDB {
     });
 
     // 3. Transform to StockReportItem using existing stock_on_hand / avg_cost / selling_price
-    const items: StockReportItem[] = matchedProducts.map(p => {
+    let items: StockReportItem[] = matchedProducts.map(p => {
       let currentStock = 0;
       let availableStock = 0;
       let locDisplay = 'All Locations';
@@ -8722,6 +8726,13 @@ export class MirageDB {
     });
 
     // 4. Calculate Aggregate Summary across ALL matching products
+    const lowStockCount = items.filter(it => it.current_stock <= lowStockThreshold).length;
+
+    // If low stock filter is active, restrict displayed items to low stock only
+    if (isLowStockOnly) {
+      items = items.filter(it => it.current_stock <= lowStockThreshold);
+    }
+
     let totalStockOnHand = 0;
     let totalStockValuePurchase = 0;
     let totalStockValueSale = 0;
@@ -8754,6 +8765,7 @@ export class MirageDB {
       total_transferred: totalTransferred,
       total_adjusted: totalAdjusted,
       total_products_count: items.length,
+      low_stock_count: lowStockCount,
     };
 
     // 5. Sort items
@@ -8761,6 +8773,11 @@ export class MirageDB {
       let valA: any = 0;
       let valB: any = 0;
       switch (sortBy) {
+        case 'status':
+        case 'stock_status':
+          valA = a.current_stock <= 0 ? 0 : (a.current_stock <= lowStockThreshold ? 1 : 2);
+          valB = b.current_stock <= 0 ? 0 : (b.current_stock <= lowStockThreshold ? 1 : 2);
+          break;
         case 'product':
         case 'name':
           valA = a.display_name.toLowerCase();

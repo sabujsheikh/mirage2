@@ -738,6 +738,8 @@ async function startServer() {
         sort_order: req.query.sort_order as any,
         date_from: req.query.date_from as string,
         date_to: req.query.date_to as string,
+        low_stock_only: req.query.low_stock_only === 'true' || req.query.low_stock === 'true',
+        low_stock_threshold: req.query.low_stock_threshold ? Number(req.query.low_stock_threshold) : undefined,
       });
       res.json(report);
     } catch (err: any) {

@@ -2467,6 +2467,7 @@ export interface StockReportSummary {
   total_transferred: number;
   total_adjusted: number;
   total_products_count: number;
+  low_stock_count?: number;
 }
 
 export interface StockReportResponse {

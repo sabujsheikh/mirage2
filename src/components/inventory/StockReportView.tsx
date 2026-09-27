@@ -21,6 +21,10 @@ import {
   Eye,
   X,
   Maximize2,
+  AlertTriangle,
+  AlertCircle,
+  CheckCircle,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 export const StockReportView: React.FC = () => {
@@ -34,6 +38,10 @@ export const StockReportView: React.FC = () => {
   const [selectedHistoryProductId, setSelectedHistoryProductId] = useState<string | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [inlineHistoryMode, setInlineHistoryMode] = useState<boolean>(false);
+
+  // Custom Low Stock threshold and toggle filter
+  const [lowStockThreshold, setLowStockThreshold] = useState<number>(5);
+  const [lowStockOnly, setLowStockOnly] = useState<boolean>(false);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -86,6 +94,10 @@ export const StockReportView: React.FC = () => {
       if (locationFilter !== 'all') {
         params.set('location', locationFilter);
       }
+      if (lowStockOnly) {
+        params.set('low_stock_only', 'true');
+      }
+      params.set('low_stock_threshold', String(lowStockThreshold));
 
       // Date range mapping for aggregated sold/transferred/adjusted
       if (dateRangeFilter === 'today') {
@@ -143,6 +155,8 @@ export const StockReportView: React.FC = () => {
     customDateTo,
     sortBy,
     sortOrder,
+    lowStockOnly,
+    lowStockThreshold,
     sessionToken,
     currentUser,
   ]);
@@ -186,6 +200,7 @@ export const StockReportView: React.FC = () => {
       'Unit Selling Price (BDT)',
       'Landed Avg Cost (BDT)',
       'Current Stock',
+      'Stock Status',
       'Available Stock',
       'Closing Value Purchase (BDT)',
       'Closing Value Sale (BDT)',
@@ -205,6 +220,7 @@ export const StockReportView: React.FC = () => {
       item.selling_price,
       item.avg_cost,
       item.current_stock,
+      item.current_stock === 0 ? '"Out of Stock"' : item.current_stock <= lowStockThreshold ? `"Low Stock (<= ${lowStockThreshold})"` : '"In Stock"',
       item.available_stock,
       item.closing_stock_value_purchase,
       item.closing_stock_value_sale,
@@ -478,7 +494,7 @@ export const StockReportView: React.FC = () => {
 
           {/* Reset Filters */}
           <div className="flex items-center justify-end md:ml-auto">
-            {(searchQuery || categoryFilter !== 'all' || brandFilter !== 'all' || locationFilter !== 'all' || dateRangeFilter !== 'all_time') && (
+            {(searchQuery || categoryFilter !== 'all' || brandFilter !== 'all' || locationFilter !== 'all' || dateRangeFilter !== 'all_time' || lowStockOnly) && (
               <button
                 type="button"
                 onClick={() => {
@@ -489,6 +505,7 @@ export const StockReportView: React.FC = () => {
                   setDateRangeFilter('all_time');
                   setCustomDateFrom('');
                   setCustomDateTo('');
+                  setLowStockOnly(false);
                   setCurrentPage(1);
                 }}
                 className="text-xs text-[var(--text-muted)] hover:text-rose-500 underline font-medium cursor-pointer"
@@ -496,6 +513,90 @@ export const StockReportView: React.FC = () => {
                 Reset All Filters
               </button>
             )}
+          </div>
+        </div>
+
+        {/* Tertiary Row: Low Stock Controls & Filter Toggle */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-[var(--border)]">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Toggle Button for Low Stock Only */}
+            <button
+              type="button"
+              onClick={() => {
+                setLowStockOnly(prev => !prev);
+                setCurrentPage(1);
+              }}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                lowStockOnly
+                  ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/50 shadow-xs ring-2 ring-amber-500/30'
+                  : 'bg-[var(--surface-sunken)] hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text)] border-[var(--border)]'
+              }`}
+              title="Click to toggle filtering for only low-stock items"
+            >
+              <AlertTriangle className={`w-3.5 h-3.5 ${lowStockOnly ? 'text-amber-600 dark:text-amber-400' : 'text-amber-500'}`} />
+              <span>Filter: Low Stock Only</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                lowStockOnly
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-[var(--card)] text-[var(--text)] border border-[var(--border)]'
+              }`}>
+                {summary?.low_stock_count !== undefined
+                  ? summary.low_stock_count
+                  : products.filter(p => p.current_stock <= lowStockThreshold).length}
+              </span>
+            </button>
+
+            {/* Custom Low Stock Threshold Input */}
+            <div className="flex items-center gap-2 bg-[var(--surface-sunken)] px-2.5 py-1.5 rounded-lg border border-[var(--border)]">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
+              <label htmlFor="low-stock-threshold-input" className="text-[10px] font-bold text-[var(--text-muted)] uppercase shrink-0">
+                Low Stock Threshold:
+              </label>
+              <div className="flex items-center gap-1">
+                <input
+                  id="low-stock-threshold-input"
+                  type="number"
+                  min={0}
+                  max={9999}
+                  value={lowStockThreshold}
+                  onChange={(e) => {
+                    const val = Math.max(0, parseInt(e.target.value) || 0);
+                    setLowStockThreshold(val);
+                    setCurrentPage(1);
+                  }}
+                  className="w-14 bg-[var(--card)] px-1.5 py-0.5 rounded text-xs font-mono font-bold text-[var(--text)] border border-[var(--border)] text-center focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                  title="Adjust the threshold quantity for Low Stock warning"
+                />
+                <span className="text-[11px] text-[var(--text-muted)]">units</span>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="hidden sm:flex items-center gap-1 ml-1 pl-1.5 border-l border-[var(--border)]">
+                {[3, 5, 10, 15].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setLowStockThreshold(preset);
+                      setCurrentPage(1);
+                    }}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-medium cursor-pointer transition-colors ${
+                      lowStockThreshold === preset
+                        ? 'bg-[var(--accent)] text-white'
+                        : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--card)]'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Low Stock Indicator Note */}
+          <div className="text-[11px] text-[var(--text-muted)] flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+            <span>Items with stock &le; <strong>{lowStockThreshold} units</strong> are flagged in the Status column.</span>
           </div>
         </div>
       </div>
@@ -567,6 +668,16 @@ export const StockReportView: React.FC = () => {
                   Current Stock
                 </th>
                 <th
+                  onClick={() => handleSort('status')}
+                  className="py-3 px-3 text-center cursor-pointer hover:text-[var(--text)] whitespace-nowrap"
+                  title="Click to sort by stock status"
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Status
+                    <ArrowUpDown className="w-3 h-3 text-[var(--text-muted)]" />
+                  </div>
+                </th>
+                <th
                   onClick={() => handleSort('value_purchase')}
                   className="py-3 px-3 text-right cursor-pointer hover:text-[var(--text)] whitespace-nowrap"
                 >
@@ -610,7 +721,7 @@ export const StockReportView: React.FC = () => {
             <tbody className="divide-y divide-[var(--border)]">
               {loading ? (
                 <tr>
-                  <td colSpan={13} className="py-12 text-center text-[var(--text-muted)]">
+                  <td colSpan={14} className="py-12 text-center text-[var(--text-muted)]">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <RefreshCw className="w-6 h-6 animate-spin text-[var(--accent)]" />
                       <span>Loading stock report...</span>
@@ -619,14 +730,14 @@ export const StockReportView: React.FC = () => {
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-12 text-center text-[var(--text-muted)]">
+                  <td colSpan={14} className="py-12 text-center text-[var(--text-muted)]">
                     No products matching your search and filter criteria.
                   </td>
                 </tr>
               ) : (
                 products.map((item) => {
-                  const isLowStock = item.current_stock <= 5;
                   const isOutOfStock = item.current_stock === 0;
+                  const isLowStock = item.current_stock <= lowStockThreshold;
                   const isSelected = selectedRowId === item.id;
 
                   return (
@@ -638,6 +749,8 @@ export const StockReportView: React.FC = () => {
                       className={`transition-colors group cursor-pointer ${
                         isSelected
                           ? 'bg-[var(--accent)]/10 ring-1 ring-inset ring-[var(--accent)]'
+                          : isLowStock
+                          ? 'odd:bg-amber-500/[0.04] even:bg-amber-500/[0.08] hover:bg-amber-500/[0.12]'
                           : 'odd:bg-[var(--card)] even:bg-[var(--surface-sunken)]/50 hover:bg-[var(--surface-hover)]'
                       }`}
                     >
@@ -646,6 +759,8 @@ export const StockReportView: React.FC = () => {
                         className={`sticky left-0 z-10 py-2.5 px-3 font-mono font-bold text-[var(--accent)] whitespace-nowrap border-r border-[var(--border)] shadow-xs ${
                           isSelected
                             ? 'bg-[var(--surface-hover)] font-black'
+                            : isLowStock
+                            ? 'bg-[var(--card)] group-odd:bg-[var(--card)] group-even:bg-amber-500/10 group-hover:bg-amber-500/15'
                             : 'bg-[var(--card)] group-odd:bg-[var(--card)] group-even:bg-[var(--surface-sunken)] group-hover:bg-[var(--surface-hover)]'
                         }`}
                       >
@@ -699,25 +814,36 @@ export const StockReportView: React.FC = () => {
                               isOutOfStock
                                 ? 'text-rose-500'
                                 : isLowStock
-                                ? 'text-amber-500'
+                                ? 'text-amber-600 dark:text-amber-400 font-extrabold'
                                 : 'text-[var(--text)]'
                             }`}
                           >
                             {item.current_stock}
                           </span>
-                          {isOutOfStock ? (
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
-                              OUT
-                            </span>
-                          ) : isLowStock ? (
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
-                              LOW
-                            </span>
-                          ) : null}
                         </div>
                         <div className="text-[10px] text-[var(--text-muted)]">
                           avail: {item.available_stock}
                         </div>
+                      </td>
+
+                      {/* Stock Status / Alert Column */}
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                        {isOutOfStock ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                            <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+                            Out of Stock
+                          </span>
+                        ) : isLowStock ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/40 ring-1 ring-amber-500/20">
+                            <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                            Low Stock (≤{lowStockThreshold})
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />
+                            In Stock
+                          </span>
+                        )}
                       </td>
 
                       {/* Stock Value (Cost) */}
